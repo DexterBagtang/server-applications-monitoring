@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\BackupController;
 use App\Http\Controllers\DownloadController;
 use App\Http\Controllers\ServerController;
 use App\Http\Controllers\ServiceController;
@@ -166,6 +167,7 @@ Route::get('/sftp-test/{server}', [App\Http\Controllers\TestController::class, '
 
 
 Route::post('/mysql-dump/{server}/{database}', [App\Http\Controllers\TestController::class, 'mysqlDump']);
+Route::post('/database-dump/{server}/{database}', [BackupController::class, 'databaseDump']);
 
 //Route::get('/download-zip/{server}',[App\Http\Controllers\TestController::class,'downloadZip']);
 //Route::get('/check-download-progress',[App\Http\Controllers\TestController::class,'checkDownloadProgress']);
