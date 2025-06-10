@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Server extends Model
 {
@@ -41,5 +42,34 @@ class Server extends Model
     public function services()
     {
         return $this->hasMany(Service::class);
+    }
+
+    public function downloadProgresses(): HasMany
+    {
+        return $this->hasMany(DownloadProgress::class);
+    }
+
+    /**
+     * Get active downloads for this server
+     */
+    public function activeDownloads(): HasMany
+    {
+        return $this->hasMany(DownloadProgress::class)->inProgress();
+    }
+
+    /**
+     * Get completed downloads for this server
+     */
+    public function completedDownloads(): HasMany
+    {
+        return $this->hasMany(DownloadProgress::class)->completed();
+    }
+
+    /**
+     * Get failed downloads for this server
+     */
+    public function failedDownloads(): HasMany
+    {
+        return $this->hasMany(DownloadProgress::class)->failed();
     }
 }

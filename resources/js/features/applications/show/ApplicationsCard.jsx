@@ -32,6 +32,7 @@ import {Input} from "@/components/ui/input.js";
 import {router} from "@inertiajs/react";
 import {LogApplicationDialog} from "@/features/applications/show/LogApplicationDialog.jsx";
 import {DbBackupDialog} from "@/features/applications/show/DbBackupDialog.jsx";
+import FileDownloadManager from "@/features/applications/show/FileDownloadManager.jsx";
 
 export default function ApplicationsCard({applications = [], server}) {
     // const [openOption, setOpenOption] = useState(false)
@@ -284,6 +285,7 @@ export default function ApplicationsCard({applications = [], server}) {
                                                     >
                                                         <Database className="h-3 w-3 mr-2"/> DB Backup
                                                     </Button>
+
                                                 </div>
                                             </div>
 

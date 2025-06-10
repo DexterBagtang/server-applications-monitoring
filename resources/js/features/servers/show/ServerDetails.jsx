@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import EditServerDialog from "@/features/servers/index/EditServerDialog.jsx";
 import {DeleteServerDialog} from "@/features/servers/index/DeleteServerDialog.jsx";
+import FileDownloadManager from "@/features/applications/show/FileDownloadManager.jsx";
 
 export function ServerDetails({server}) {
     // console.log(server)
@@ -172,7 +173,10 @@ export function ServerDetails({server}) {
                 </Card>
 
                 {server.status === 'Online' &&
-                    <ServerTerminal server={server}/>
+                    <div className="flex gap-2">
+                        <ServerTerminal server={server}/>
+                        <FileDownloadManager server={server} />
+                    </div>
                 }
 
             </div>

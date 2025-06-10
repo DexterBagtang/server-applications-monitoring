@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\DownloadFileJob;
+use App\Models\DownloadProgress;
 use App\Models\Server;
 use App\Services\SSHService;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Str;
+use phpseclib3\Net\SFTP\Stream;
 
 class TestController extends Controller
 {
@@ -74,69 +79,51 @@ class TestController extends Controller
     /**
      * MySQL dump
      *
-     * @param Server $server
-     * @param string $database
-     * @param Request $request
-     * @return \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
+//     * @param Server $server
+//     * @param string $database
+//     * @param Request $request
+//     * @return \Illuminate\Http\Response|\Illuminate\Http\JsonResponse
      */
-    public function mysqlDump(Server $server, $database, Request $request = null)
+    public function mysqlDump(Server $server, $database, Request $request)
     {
         if (!preg_match('/^[a-zA-Z0-9_]+$/', $database)) {
             return response()->json(['error' => 'Invalid database name'], 400);
         }
+
 
         $timestamp = date('Y-m-d_H-i-s');
         $dumpFileName = "{$database}_dump_{$timestamp}.sql";
         $dumpPath = "/tmp/{$dumpFileName}";
 
         try {
-            // Check if this is a Laravel project by looking for .env file
-            $checkEnvCommand = "[ -f {$server->application_path}/.env ] && echo 'EXISTS' || echo 'MISSING'";
-            $envExists = trim($this->sshService->executeCommand($server, $checkEnvCommand));
-
             $dbUsername = null;
             $dbPassword = null;
 
-            if ($envExists === 'EXISTS') {
-                // Try to get database credentials from .env file
-                $getDbUserCommand = "grep -E '^DB_USERNAME=' {$server->application_path}/.env | cut -d '=' -f2";
-                $getDbPassCommand = "grep -E '^DB_PASSWORD=' {$server->application_path}/.env | cut -d '=' -f2";
-
-                $dbUsername = trim($this->sshService->executeCommand($server, $getDbUserCommand));
-                $dbPassword = trim($this->sshService->executeCommand($server, $getDbPassCommand));
-            }
-
-            // If credentials not found in .env or request has credentials, use those from request
-            if (($dbUsername === '' || $dbPassword === '') && $request && $request->has('db_username') && $request->has('db_password')) {
+            if ($request && $request->has('db_username') && $request->has('db_password')) {
                 $dbUsername = $request->input('db_username');
                 $dbPassword = $request->input('db_password');
-                // If database name is provided in request, use it
                 if ($request->has('db_name')) {
                     $database = $request->input('db_name');
-                    // Validate again
-                    if (!preg_match('/^[a-zA-Z0-9_]+$/', $database)) {
-                        return response()->json(['error' => 'Invalid database name'], 400);
-                    }
                 }
             }
 
-            // If still no credentials, return error asking for credentials
-            if (empty($dbUsername) || empty($dbPassword)) {
-                return response()->json([
-                    'error' => 'Database credentials not found',
-                    'need_credentials' => true
-                ], 400);
-            }
 
-            // Run mysqldump with the obtained credentials
+
+            // Prepare the mysqldump command
             $escapedDb = escapeshellarg($database);
             $escapedPath = escapeshellarg($dumpPath);
             $escapedUsername = escapeshellarg($dbUsername);
-            $escapedPassword = escapeshellarg($dbPassword);
 
-            $mysqldumpCommand = "mysqldump -u {$escapedUsername} -p{$escapedPassword} {$escapedDb} > {$escapedPath} 2>&1";
+            // Use -p without space followed by password for older MySQL versions
+            $passwordPart = $dbPassword ? "-p" . $dbPassword : "";
 
-            $this->sshService->executeCommand($server, $mysqldumpCommand);
+
+            $mysqldumpCommand = "mysqldump -u {$escapedUsername} '$passwordPart' {$escapedDb} > {$escapedPath} 2>&1";
+
+//            dd($mysqldumpCommand);
+
+
+            $this->sshService->executeCommand($server, $mysqldumpCommand,true);
 
             // Check if file exists
             $checkFileCommand = "[ -f {$escapedPath} ] && echo 'EXISTS' || echo 'MISSING'";
@@ -149,22 +136,45 @@ class TestController extends Controller
                 ], 500);
             }
 
-            // Get file contents via SFTP
-            $sftp = $this->sshService->getSFTPConnection($server);
-            $fileContents = $sftp->get($dumpPath);
 
-            // Clean up dump file
-            $this->sshService->executeCommand($server, "rm -f {$escapedPath}");
+            $progressKey = 'download_' . $server->id . '_' . Str::random(8);
 
-            if ($fileContents === false) {
-                return response()->json(['error' => 'Failed to download dump file'], 500);
-            }
-
-            return Response::make($fileContents, 200, [
-                'Content-Type' => 'application/sql',
-                'Content-Disposition' => "attachment; filename=\"{$dumpFileName}\"",
-                'Content-Length' => strlen($fileContents)
+            $downloadProgress = DownloadProgress::create([
+                'progress_key' => $progressKey,
+                'server_id' => $server->id,
+                'remote_path' => $dumpPath,
+                'local_filename' => $dumpFileName,
+                'status' => 'pending',
             ]);
+
+            $job = DownloadFileJob::dispatch($server, $dumpPath, $dumpFileName, $progressKey);
+
+
+            return response()->json([
+                'message' => 'Download started',
+                'progress_id' => $downloadProgress->id,
+                'progress_key' => $progressKey,
+                'job_id' => Str::uuid(),
+                'progress_endpoint' => route('download.progress', ['key' => $progressKey])
+            ], 202);
+
+//            // Get file contents via SFTP
+//            $sftp = $this->sshService->getSFTPConnection($server);
+//
+//            $fileContents = $sftp->get($dumpPath);
+//
+//            // Clean up dump file
+////            $this->sshService->executeCommand($server, "rm -f {$escapedPath}");
+//
+//            if ($fileContents === false) {
+//                return response()->json(['error' => 'Failed to download dump file'], 500);
+//            }
+
+//            return Response::make($fileContents, 200, [
+//                'Content-Type' => 'application/sql',
+//                'Content-Disposition' => "attachment; filename=\"{$dumpFileName}\"",
+//                'Content-Length' => strlen($fileContents)
+//            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Unexpected error occurred',
@@ -172,4 +182,94 @@ class TestController extends Controller
             ], 500);
         }
     }
+
+//    public function downloadZip(Server $server) {
+//        // Disable time limits for large downloads
+//        set_time_limit(0);
+//
+//        $remotePath = '/var/www/prod-billing/public/storage/invoices.tar.gz';
+//        $localPath = storage_path('app/invoices.tar.gz');
+//
+//        $sftp = $this->sshService->getSFTPConnection($server);
+//
+//        $sftp->setTimeout(7200);
+//
+//        $fileContents = $sftp->get($remotePath);
+//
+//        if ($fileContents === false) {
+//            return response()->json(['error' => 'Failed to download file'], 500);
+//        }
+//        //store file in storage localpath
+//
+//        if (file_put_contents($localPath, $fileContents) === false) {
+//            return response()->json(['error' => 'Failed to save file locally'], 500);
+//        }
+//
+//        return response("File downloaded successfully to: $localPath", 200);
+//    }
+
+//    public function downloadZip(Server $server)
+//    {
+//        // Disable time limits for large downloads
+//        set_time_limit(0);
+//
+////        $remotePath = '/var/www/prod-billing/public/storage/invoices.tar.gz';
+//        $remotePath = '/tmp/database.sql';
+//        $localPath = storage_path('app/database.sql');
+//        $progressPath = storage_path('app/invoices_progress.json');
+//
+//        $sftp = $this->sshService->getSFTPConnection($server);
+//        $sftp->setTimeout(7200);
+//
+//        // Reset progress file
+//        file_put_contents($progressPath, json_encode([
+//            'downloaded' => 0,
+//            'status' => 'downloading',
+//        ]));
+//
+//        // Open local file for writing
+//        $localFile = fopen($localPath, 'w');
+//        if (!$localFile) {
+//            return response()->json(['error' => 'Unable to open local file'], 500);
+//        }
+//
+//        // Use get() with callback and write to file in chunks
+//        $result = $sftp->get($remotePath, $localFile, 0, -1, function ($downloaded) use ($progressPath) {
+//            file_put_contents($progressPath, json_encode([
+//                'downloaded' => $downloaded/1024/1024,
+//                'status' => 'downloading',
+//            ]));
+//        });
+//
+//        fclose($localFile);
+//
+//        if ($result === false) {
+//            file_put_contents($progressPath, json_encode([
+//                'downloaded' => 0,
+//                'status' => 'failed',
+//            ]));
+//            return response()->json(['error' => 'Failed to download file'], 500);
+//        }
+//
+//        file_put_contents($progressPath, json_encode([
+//            'downloaded' => filesize($localPath),
+//            'status' => 'complete',
+//        ]));
+//
+//        return response("File downloaded successfully to: $localPath", 200);
+//    }
+//
+//
+//    public function checkDownloadProgress()
+//    {
+//        $progressPath = storage_path('app/invoices_progress.json');
+//
+//        if (!file_exists($progressPath)) {
+//            return response()->json(['status' => 'not_started']);
+//        }
+//
+//        $progress = json_decode(file_get_contents($progressPath), true);
+//        return response()->json($progress);
+//    }
+
 }

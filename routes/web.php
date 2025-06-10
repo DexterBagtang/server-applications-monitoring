@@ -1,9 +1,11 @@
 <?php
 
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\DownloadController;
 use App\Http\Controllers\ServerController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\TerminalController;
+use App\Http\Controllers\TestController;
 use App\Models\Server;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Route;
@@ -163,9 +165,43 @@ Route::get('/sftp-test/{server}', [App\Http\Controllers\TestController::class, '
 
 
 
-Route::get('/mysql-dump/{server}/{database}', [App\Http\Controllers\TestController::class, 'mysqlDump']);
+Route::post('/mysql-dump/{server}/{database}', [App\Http\Controllers\TestController::class, 'mysqlDump']);
 
+//Route::get('/download-zip/{server}',[App\Http\Controllers\TestController::class,'downloadZip']);
+//Route::get('/check-download-progress',[App\Http\Controllers\TestController::class,'checkDownloadProgress']);
+//
+//Route::get('/download/progress/{key}', [TestController::class, 'getDownloadProgress'])->name('download.progress');
+//Route::get('/download/file/{filename}', [TestController::class, 'downloadFile'])->name('download.file');
 
+Route::prefix('downloads')->group(function () {
+    // Start a download
+    Route::post('/servers/{server}/download', [DownloadController::class, 'downloadZip'])
+        ->name('server.download');
+
+    // Get progress by progress key
+    Route::get('/progress/{key}', [DownloadController::class, 'getDownloadProgress'])
+        ->name('download.progress');
+
+    // Get progress by ID
+    Route::get('/progress/id/{id}', [DownloadController::class, 'getDownloadProgressById'])
+        ->name('download.progress.by.id');
+
+    // Download completed file
+    Route::get('/file/{filename}', [DownloadController::class, 'downloadFile'])
+        ->name('download.file');
+
+    // List all downloads for a server
+    Route::get('/servers/{server}', [DownloadController::class, 'listServerDownloads'])
+        ->name('server.downloads.list');
+
+    // Cancel a download
+    Route::post('/cancel/{key}', [DownloadController::class, 'cancelDownload'])
+        ->name('download.cancel');
+
+    // Delete a download
+    Route::delete('/{key}', [DownloadController::class, 'deleteDownload'])
+        ->name('download.delete');
+});
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

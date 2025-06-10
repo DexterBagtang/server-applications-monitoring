@@ -175,7 +175,7 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
                         </div>
                     </CardHeader>
                     <CardContent className="text-sm p-0">
-                        <ScrollArea className={` font-mono p-4 rounded-b-md h-96 max-w-2xl ${sudo ? "border-t border-red-500" : ""}`}>
+                        <ScrollArea className={` font-mono p-4 rounded-b-md h-96 max-w-2xl mx-auto ${sudo ? "border-t border-red-500" : ""}`}>
                             {output.map((line, i) => (
                                 <div key={i} style={{ whiteSpace: 'pre-wrap' }} dangerouslySetInnerHTML={{ __html: line }} />
                             ))}
