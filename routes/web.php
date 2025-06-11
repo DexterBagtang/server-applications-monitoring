@@ -203,6 +203,9 @@ Route::prefix('downloads')->group(function () {
     // Delete a download
     Route::delete('/{key}', [DownloadController::class, 'deleteDownload'])
         ->name('download.delete');
+
+    Route::get('/servers/{server}/browse', [DownloadController::class, 'browseFiles'])
+        ->name('server.browse.files');
 });
 
 require __DIR__.'/settings.php';

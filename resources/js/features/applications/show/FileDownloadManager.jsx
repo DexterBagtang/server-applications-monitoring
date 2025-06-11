@@ -18,15 +18,130 @@ import {
     FileText,
     Loader2,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    Folder,
+    File,
+    FolderOpen,
+    ArrowLeft
 } from 'lucide-react';
 import { formatFileSize } from "@/utils/fileUtils.js";
 
+const FileBrowser = ({ server, onSelectFile, currentPath, onClose }) => {
+    const [files, setFiles] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [path, setPath] = useState(currentPath || '/');
+
+    useEffect(() => {
+        fetchFiles(path);
+    }, [path]);
+
+    const formatSftpFileSize = (bytes) => {
+        if (!bytes || bytes === 0) return '0 B';
+
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const base = 1024;
+        const index = Math.floor(Math.log(bytes) / Math.log(base));
+        const size = bytes / Math.pow(base, index);
+
+        const formattedSize = index === 0 ? size.toString() : size.toFixed(1);
+        return `${formattedSize} ${units[index]}`;
+    };
+
+    const fetchFiles = async (dirPath) => {
+        setLoading(true);
+        setError('');
+
+        try {
+            const { data } = await axios.get(`/downloads/servers/${server.id}/browse`, {
+                params: { path: dirPath }
+            });
+            console.log(data.files)
+            setFiles(data.files);
+            setPath(data.current_path);
+        } catch (err) {
+            setError(err.response?.data?.error || 'Failed to browse files');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleFileClick = (file) => {
+        if (file.is_directory) {
+            setPath(file.path);
+        } else {
+            onSelectFile(file.path, file.name);
+            onClose();
+        }
+    };
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground bg-muted rounded-md">
+                <FolderOpen className="h-4 w-4 flex-shrink-0" />
+                <span className="truncate font-mono text-xs">{path}</span>
+            </div>
+
+            {error && (
+                <Alert variant="destructive" className="py-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription className="text-xs">{error}</AlertDescription>
+                </Alert>
+            )}
+
+            <div className="border rounded-md max-h-64 overflow-y-auto text-sm">
+                {loading ? (
+                    <div className="flex items-center justify-center p-4">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        <span>Loading files...</span>
+                    </div>
+                ) : (
+                    <div className="divide-y">
+                        {files.map((file, index) => (
+                            <div
+                                key={index}
+                                className="flex items-center gap-2 p-2 hover:bg-accent cursor-pointer"
+                                onClick={() => handleFileClick(file)}
+                            >
+                                <div className="flex-shrink-0 text-muted-foreground">
+                                    {file.is_parent ? (
+                                        <ArrowLeft className="h-4 w-4" />
+                                    ) : file.is_directory ? (
+                                        <Folder className="h-4 w-4 text-blue-500" />
+                                    ) : (
+                                        <File className="h-4 w-4" />
+                                    )}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                    <div className="truncate font-medium">{file.name}</div>
+                                    {!file.is_directory && !file.is_parent && (
+                                        <div className="text-xs text-muted-foreground flex gap-2">
+                                            <span>{formatSftpFileSize(file.size)}</span>
+                                            {file.modified && <span>{file.modified}</span>}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        {files.length === 0 && !loading && (
+                            <div className="p-4 text-center text-muted-foreground text-sm">
+                                No files found
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 const FileDownloadManager = ({ server }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [showBrowser, setShowBrowser] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
-    const [remotePath, setRemotePath] = useState('/tmp/database.sql');
-    const [localFilename, setLocalFilename] = useState('database.sql');
+    const [remotePath, setRemotePath] = useState('/');
+    const [localFilename, setLocalFilename] = useState('');
     const [progress, setProgress] = useState(null);
     const [progressKey, setProgressKey] = useState('');
     const [error, setError] = useState('');
@@ -94,12 +209,22 @@ const FileDownloadManager = ({ server }) => {
         }
     };
 
+    const handleFileSelect = (filePath, fileName) => {
+        setRemotePath(filePath);
+        // Extract filename from path if localFilename is not set or is default
+        if (!localFilename || localFilename === 'database.sql') {
+            setLocalFilename(fileName);
+        }
+        setShowBrowser(false);
+    };
+
     const resetState = () => {
         setIsDownloading(false);
         setProgress(null);
         setProgressKey('');
         setError('');
         setDownloadComplete(false);
+        setShowBrowser(false);
     };
 
     const handleClose = () => {
@@ -108,7 +233,7 @@ const FileDownloadManager = ({ server }) => {
     };
 
     const isFormValid = remotePath.trim() && localFilename.trim();
-    const showForm = !isDownloading && !downloadComplete && !error;
+    const showForm = !isDownloading && !downloadComplete && !error && !showBrowser;
     const showProgress = isDownloading;
     const showSuccess = downloadComplete && !error;
     const showError = error && !isDownloading;
@@ -122,25 +247,46 @@ const FileDownloadManager = ({ server }) => {
                 </Button>
             </DialogTrigger>
 
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
-                        Download File from {server.name}
+                        {showBrowser ? 'Browse Files' : `Download File from ${server.name}`}
                     </DialogTitle>
                 </DialogHeader>
+
+                {/* File Browser */}
+                {showBrowser && (
+                    <FileBrowser
+                        server={server}
+                        onSelectFile={handleFileSelect}
+                        currentPath={remotePath}
+                        onClose={() => setShowBrowser(false)}
+                    />
+                )}
 
                 {/* Form */}
                 {showForm && (
                     <div className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="remotePath">Remote File Path</Label>
-                            <Input
-                                id="remotePath"
-                                value={remotePath}
-                                onChange={(e) => setRemotePath(e.target.value)}
-                                placeholder="/path/to/file.txt"
-                            />
+                            <div className="flex gap-2">
+                                <Input
+                                    id="remotePath"
+                                    value={remotePath}
+                                    onChange={(e) => setRemotePath(e.target.value)}
+                                    placeholder="/path/to/file.txt"
+                                    className="flex-1"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowBrowser(true)}
+                                >
+                                    <Folder className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="space-y-2">
@@ -200,7 +346,7 @@ const FileDownloadManager = ({ server }) => {
                             <span className="font-medium">Download Complete!</span>
                         </div>
 
-                        <div className="rounded-lg p-4">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div className="text-sm">
                                 <div className="font-medium">{progress?.local_filename}</div>
                                 <div className="text-green-700">
@@ -231,6 +377,12 @@ const FileDownloadManager = ({ server }) => {
                 )}
 
                 <DialogFooter>
+                    {showBrowser && (
+                        <Button variant="outline" onClick={() => setShowBrowser(false)}>
+                            Back to Form
+                        </Button>
+                    )}
+
                     {showForm && (
                         <>
                             <Button variant="outline" onClick={handleClose}>

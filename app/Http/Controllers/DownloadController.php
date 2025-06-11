@@ -7,7 +7,36 @@ use App\Models\DownloadProgress;
 use App\Models\Server;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use phpseclib3\Net\SFTP;
 
+// Define all SFTP type constants that phpseclib3 expects
+if (!defined('NET_SFTP_TYPE_REGULAR')) {
+    define('NET_SFTP_TYPE_REGULAR', 1);
+}
+if (!defined('NET_SFTP_TYPE_DIRECTORY')) {
+    define('NET_SFTP_TYPE_DIRECTORY', 2);
+}
+if (!defined('NET_SFTP_TYPE_SYMLINK')) {
+    define('NET_SFTP_TYPE_SYMLINK', 3);
+}
+if (!defined('NET_SFTP_TYPE_SPECIAL')) {
+    define('NET_SFTP_TYPE_SPECIAL', 4);
+}
+if (!defined('NET_SFTP_TYPE_UNKNOWN')) {
+    define('NET_SFTP_TYPE_UNKNOWN', 5);
+}
+if (!defined('NET_SFTP_TYPE_SOCKET')) {
+    define('NET_SFTP_TYPE_SOCKET', 6);
+}
+if (!defined('NET_SFTP_TYPE_CHAR_DEVICE')) {
+    define('NET_SFTP_TYPE_CHAR_DEVICE', 7);
+}
+if (!defined('NET_SFTP_TYPE_BLOCK_DEVICE')) {
+    define('NET_SFTP_TYPE_BLOCK_DEVICE', 8);
+}
+if (!defined('NET_SFTP_TYPE_FIFO')) {
+    define('NET_SFTP_TYPE_FIFO', 9);
+}
 class DownloadController extends Controller
 {
     public function downloadZip(Server $server, Request $request)
@@ -15,7 +44,6 @@ class DownloadController extends Controller
         $remotePath = $request->get('remote_path', '/tmp/invoices.tar.gz');
         $localFileName = $request->get('local_filename', 'invoices.tar.gz');
         $progressKey = 'download_' . $server->id . '_' . Str::random(8);
-
 
         // Create download progress record
         $downloadProgress = DownloadProgress::create([
@@ -38,6 +66,105 @@ class DownloadController extends Controller
         ], 202);
     }
 
+    /**
+     * Browse files on remote server via SFTP
+     */
+    public function browseFiles(Server $server, Request $request)
+    {
+        $path = $request->get('path', '/');
+
+        try {
+            $sftp = new SFTP($server->ip_address, $server->agentConnection->port ?? 22);
+
+            $login = $sftp->login($server->agentConnection->username, $server->agentConnection->password);
+
+            if (!$login) {
+                return response()->json(['error' => 'Failed to authenticate with server'], 401);
+            }
+
+            // Get directory listing with attributes in a single call
+            $rawFiles = $sftp->rawlist($path);
+
+            if ($rawFiles === false) {
+                return response()->json(['error' => 'Failed to read directory or path does not exist'], 404);
+            }
+
+            $fileList = [];
+
+            foreach ($rawFiles as $filename => $attributes) {
+                // Skip . and .. entries
+                if ($filename === '.' || $filename === '..') {
+                    continue;
+                }
+
+                $fullPath = rtrim($path, '/') . '/' . $filename;
+
+                // Check if it's a directory using the type attribute or mode
+                $isDirectory = false;
+                if (isset($attributes['type'])) {
+                    // Use type attribute if available (more reliable)
+                    $isDirectory = $attributes['type'] === NET_SFTP_TYPE_DIRECTORY;
+                } elseif (isset($attributes['mode'])) {
+                    // Fallback to mode check
+                    $isDirectory = ($attributes['mode'] & 0040000) !== 0;
+                }
+
+                $fileList[] = [
+                    'name' => $filename,
+                    'path' => $fullPath,
+                    'is_directory' => $isDirectory,
+                    'size' => $attributes['size'] ?? 0,
+                    'modified' => isset($attributes['mtime']) ? date('Y-m-d H:i:s', $attributes['mtime']) : null,
+                    'permissions' => isset($attributes['mode']) ? substr(sprintf('%o', $attributes['mode']), -4) : null,
+                ];
+            }
+
+            // Sort: directories first, then files, both alphabetically
+            usort($fileList, function ($a, $b) {
+                if ($a['is_directory'] === $b['is_directory']) {
+                    return strcasecmp($a['name'], $b['name']);
+                }
+                return $a['is_directory'] ? -1 : 1;
+            });
+
+            // Add parent directory entry if not at root
+            if ($path !== '/' && $path !== '') {
+                $parentPath = dirname($path);
+
+                // Fix: Ensure we always use forward slashes for Unix/Linux paths
+                // Convert backslashes to forward slashes and handle root directory
+                $parentPath = str_replace('\\', '/', $parentPath);
+                if ($parentPath === '.' || $parentPath === '') {
+                    $parentPath = '/';
+                }
+
+                array_unshift($fileList, [
+                    'name' => '..',
+                    'path' => $parentPath,
+                    'is_directory' => true,
+                    'size' => 0,
+                    'modified' => null,
+                    'permissions' => null,
+                    'is_parent' => true
+                ]);
+            }
+
+            return response()->json([
+                'current_path' => $path,
+                'files' => $fileList
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Failed to connect to server: ' . $e->getMessage()
+            ], 500);
+        } finally {
+            // Ensure SFTP connection is properly closed
+            if (isset($sftp)) {
+                $sftp->disconnect();
+            }
+        }
+    }
     /**
      * Get download progress by progress key
      */
