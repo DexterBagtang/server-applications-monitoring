@@ -5,6 +5,7 @@ import { Head } from '@inertiajs/react';
 import {useEffect} from "react";
 import {toast} from "sonner";
 import DropdownDialogTest from "@/features/tests/DropdownDialogTest";
+import {useEcho, useEchoPublic} from "@laravel/echo-react";
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -14,17 +15,14 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function Dashboard() {
-    useEffect(() => {
-        const channel = window.Echo.channel('testing')
-            .listen('TestReverb', (e) => {
-                console.log('Event received:', e);
-                toast(e.message)
-            });
 
-        return () => {
-            channel.stopListening('TestReverb');
-        };
-    }, []);
+    useEchoPublic('testing','TestReverb', (e) => {
+        console.log('Event received via useEchoPublic hook:', e);
+        toast.success(e.message, {
+            position: 'top-right',
+            duration: 3000,
+        })
+    })
 
 
     return (

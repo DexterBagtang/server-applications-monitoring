@@ -12,3 +12,7 @@ Broadcast::channel('server.{serverId}.terminal', function ($user, $serverId) {
 //    return $user->can('access-terminal', Server::findOrFail($serverId));
     return true;
 });
+
+Broadcast::channel('testing',function (){
+    return true;
+});
