@@ -90,17 +90,17 @@ class SSHService
 
         if ($sudo) {
             $password = sprintf("'%s'", $server->agentConnection->password);
-            $command = "echo {$password} | sudo -S bash -c '{$command}'";
+            $command = "echo {$password} | sudo -S -p \"\" bash -lc '{$command}'";
         }
 
         try {
-            $output = $ssh->exec($command);
+            $output = $ssh->exec($command.' 2>&1');
             return $output;
         } catch (\Exception $e) {
             // If command execution fails, try with a fresh connection
             $this->closeConnection($server);
             $ssh = $this->getConnection($server, true);
-            return $ssh->exec($command);
+            return $ssh->exec($command.' 2>&1');
         }
     }
 

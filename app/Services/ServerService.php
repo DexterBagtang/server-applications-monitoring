@@ -200,10 +200,6 @@ class ServerService
             throw new \Exception('Command blocked for security reasons');
         }
 
-//        if ($sudoEnabled) {
-//            $password = sprintf("'%s'", $server->agentConnection->password);
-//            $command = str_replace('sudopassword', $password, $command);
-//        }
 
         $needColor = stripos($command, 'git diff') !== false;
 
