@@ -55,7 +55,8 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
             return;
         }
 
-        const fullCommand = `cd ${currentDir} && ${sudo ? 'echo sudopassword | sudo -S' : ''} ${command}`;
+
+        const fullCommand = `cd ${currentDir} && ${command}`;
 
         axios.post(`/servers/${server.id}/execute`, { command: fullCommand, sudoEnabled: sudo })
             .then(response => {

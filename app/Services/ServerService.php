@@ -211,6 +211,7 @@ class ServerService
             $command .= ' --color=always';
         }
 
+
         return $this->sshService->executeCommand($server, $command,$sudoEnabled);
     }
 }

@@ -90,7 +90,7 @@ class SSHService
 
         if ($sudo) {
             $password = sprintf("'%s'", $server->agentConnection->password);
-            $command = "echo {$password} | sudo -S {$command}";
+            $command = "echo {$password} | sudo -S bash -c '{$command}'";
         }
 
         try {
@@ -100,9 +100,7 @@ class SSHService
             // If command execution fails, try with a fresh connection
             $this->closeConnection($server);
             $ssh = $this->getConnection($server, true);
-
-            $output = $ssh->exec($command);
-            return $output;
+            return $ssh->exec($command);
         }
     }
 
