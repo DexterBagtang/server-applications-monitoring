@@ -22,7 +22,9 @@ import {
     Folder,
     File,
     FolderOpen,
-    ArrowLeft
+    ArrowLeft,
+    Upload,
+    Server
 } from 'lucide-react';
 import { formatFileSize } from "@/utils/fileUtils.js";
 
@@ -136,16 +138,49 @@ const FileBrowser = ({ server, onSelectFile, currentPath, onClose }) => {
         </div>
     );
 };
-const FileDownloadManager = ({ server }) => {
+
+const ServerSelector = ({ servers, selectedServerId, onSelectServer }) => {
+    return (
+        <div className="space-y-2">
+            <Label>Target Server</Label>
+            <div className="border rounded-md max-h-64 overflow-y-auto text-sm">
+                {servers.map((server) => (
+                    <div
+                        key={server.id}
+                        className={`flex items-center gap-2 p-2 hover:bg-accent cursor-pointer ${selectedServerId === server.id ? 'bg-accent' : ''}`}
+                        onClick={() => onSelectServer(server.id)}
+                    >
+                        <Server className="h-4 w-4 text-green-500" />
+                        <div className="flex-1 min-w-0">
+                            <div className="truncate font-medium">{server.name}</div>
+                            <div className="text-xs text-muted-foreground">{server.ip_address}</div>
+                        </div>
+                        {selectedServerId === server.id && (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const FileDownloadManager = ({ server, servers }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [showBrowser, setShowBrowser] = useState(false);
+    const [showServerSelector, setShowServerSelector] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isTransferring, setIsTransferring] = useState(false);
     const [remotePath, setRemotePath] = useState('/');
     const [localFilename, setLocalFilename] = useState('');
+    const [targetServerId, setTargetServerId] = useState(null);
+    const [targetPath, setTargetPath] = useState('/');
     const [progress, setProgress] = useState(null);
     const [progressKey, setProgressKey] = useState('');
     const [error, setError] = useState('');
     const [downloadComplete, setDownloadComplete] = useState(false);
+    const [transferComplete, setTransferComplete] = useState(false);
+    const [actionType, setActionType] = useState(''); // 'download' or 'transfer'
 
     // Configure axios defaults
     useEffect(() => {
@@ -153,23 +188,39 @@ const FileDownloadManager = ({ server }) => {
         if (csrfToken) {
             axios.defaults.headers.common['X-CSRF-TOKEN'] = csrfToken;
         }
+
+
     }, []);
+
 
     // Poll for progress updates
     useEffect(() => {
-        if (!isDownloading || !progressKey) return;
+        if ((!isDownloading && !isTransferring) || !progressKey) return;
 
         const interval = setInterval(async () => {
             try {
-                const { data } = await axios.get(`/downloads/progress/${progressKey}`);
+                const endpoint = actionType === 'transfer'
+                    ? `/uploads/progress/${progressKey}`
+                    : `/downloads/progress/${progressKey}`;
+
+                const { data } = await axios.get(endpoint);
                 setProgress(data);
 
                 if (data.status === 'complete') {
-                    setIsDownloading(false);
-                    setDownloadComplete(true);
+                    if (actionType === 'download') {
+                        setIsDownloading(false);
+                        setDownloadComplete(true);
+                    } else {
+                        setIsTransferring(false);
+                        setTransferComplete(true);
+                    }
                 } else if (data.status === 'failed') {
-                    setIsDownloading(false);
-                    setError(data.error_message || 'Download failed');
+                    if (actionType === 'download') {
+                        setIsDownloading(false);
+                    } else {
+                        setIsTransferring(false);
+                    }
+                    setError(data.error_message || 'Operation failed');
                 }
             } catch (err) {
                 console.error('Error fetching progress:', err);
@@ -177,13 +228,14 @@ const FileDownloadManager = ({ server }) => {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isDownloading, progressKey]);
+    }, [isDownloading, isTransferring, progressKey, actionType]);
 
     const startDownload = async () => {
         try {
             setError('');
             setIsDownloading(true);
             setDownloadComplete(false);
+            setActionType('download');
 
             const { data } = await axios.post(`/downloads/servers/${server.id}/download`, {
                 remote_path: remotePath,
@@ -195,6 +247,33 @@ const FileDownloadManager = ({ server }) => {
         } catch (err) {
             setIsDownloading(false);
             setError(err.response?.data?.error || err.message || 'Failed to start download');
+        }
+    };
+
+    const startTransfer = async () => {
+        try {
+            setError('');
+            setIsTransferring(true);
+            setTransferComplete(false);
+            setActionType('transfer');
+
+            const { data } = await axios.post(`/uploads/servers/${targetServerId}/upload`, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                },
+                remote_path: targetPath,
+                file: {
+                    path: remotePath,
+                    name: localFilename
+                },
+                overwrite: true
+            });
+
+            setProgressKey(data.progress_key);
+            setProgress({ status: 'pending', uploaded_mb: 0, progress_percentage: 0 });
+        } catch (err) {
+            setIsTransferring(false);
+            setError(err.response?.data?.error || err.message || 'Failed to start transfer');
         }
     };
 
@@ -220,11 +299,15 @@ const FileDownloadManager = ({ server }) => {
 
     const resetState = () => {
         setIsDownloading(false);
+        setIsTransferring(false);
         setProgress(null);
         setProgressKey('');
         setError('');
         setDownloadComplete(false);
+        setTransferComplete(false);
         setShowBrowser(false);
+        setShowServerSelector(false);
+        setActionType('');
     };
 
     const handleClose = () => {
@@ -233,10 +316,11 @@ const FileDownloadManager = ({ server }) => {
     };
 
     const isFormValid = remotePath.trim() && localFilename.trim();
-    const showForm = !isDownloading && !downloadComplete && !error && !showBrowser;
-    const showProgress = isDownloading;
-    const showSuccess = downloadComplete && !error;
-    const showError = error && !isDownloading;
+    const isTransferFormValid = isFormValid && targetServerId && targetPath.trim();
+    const showForm = !isDownloading && !downloadComplete && !error && !showBrowser && !showServerSelector && !isTransferring && !transferComplete;
+    const showProgress = isDownloading || isTransferring;
+    const showSuccess = (downloadComplete || transferComplete) && !error;
+    const showError = error && !isDownloading && !isTransferring;
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -251,7 +335,9 @@ const FileDownloadManager = ({ server }) => {
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
-                        {showBrowser ? 'Browse Files' : `Download File from ${server.name}`}
+                        {showBrowser ? 'Browse Files' :
+                            showServerSelector ? 'Select Target Server' :
+                                `Transfer File from ${server.name}`}
                     </DialogTitle>
                 </DialogHeader>
 
@@ -265,11 +351,35 @@ const FileDownloadManager = ({ server }) => {
                     />
                 )}
 
+                {/* Server Selector */}
+                {showServerSelector && (
+                    <div className="space-y-4">
+                        <ServerSelector
+                            servers={servers?.filter(s => s.id !== server.id)}
+                            selectedServerId={targetServerId}
+                            onSelectServer={(id) => {
+                                setTargetServerId(id);
+                                setShowServerSelector(false);
+                            }}
+                        />
+
+                        <div className="space-y-2">
+                            <Label htmlFor="targetPath">Target Directory</Label>
+                            <Input
+                                id="targetPath"
+                                value={targetPath}
+                                onChange={(e) => setTargetPath(e.target.value)}
+                                placeholder="/path/to/destination/"
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {/* Form */}
                 {showForm && (
                     <div className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="remotePath">Remote File Path</Label>
+                            <Label htmlFor="remotePath">Source File Path</Label>
                             <div className="flex gap-2">
                                 <Input
                                     id="remotePath"
@@ -290,7 +400,7 @@ const FileDownloadManager = ({ server }) => {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="localFilename">Save as</Label>
+                            <Label htmlFor="localFilename">Filename</Label>
                             <Input
                                 id="localFilename"
                                 value={localFilename}
@@ -307,7 +417,9 @@ const FileDownloadManager = ({ server }) => {
                         <div className="flex items-center gap-2">
                             <Loader2 className="h-4 w-4 animate-spin" />
                             <span className="text-sm font-medium">
-                                {progress.status === 'pending' ? 'Starting download...' : 'Downloading...'}
+                                {progress.status === 'pending' ?
+                                    (actionType === 'download' ? 'Starting download...' : 'Starting transfer...') :
+                                    (actionType === 'download' ? 'Downloading...' : 'Transferring...')}
                             </span>
                         </div>
 
@@ -322,9 +434,11 @@ const FileDownloadManager = ({ server }) => {
                         )}
 
                         <div className="text-sm">
-                            <span className="text-muted-foreground">Downloaded: </span>
+                            <span className="text-muted-foreground">
+                                {actionType === 'download' ? 'Downloaded: ' : 'Transferred: '}
+                            </span>
                             <span className="font-medium">
-                                {formatFileSize(progress.downloaded_mb || 0)}
+                                {formatFileSize(actionType === 'download' ? (progress.downloaded_mb || 0) : (progress.uploaded_mb || 0))}
                             </span>
                             {progress.total_size_mb && (
                                 <>
@@ -343,22 +457,37 @@ const FileDownloadManager = ({ server }) => {
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 text-green-600">
                             <CheckCircle className="h-5 w-5" />
-                            <span className="font-medium">Download Complete!</span>
+                            <span className="font-medium">
+                                {actionType === 'download' ? 'Download Complete!' : 'Transfer Complete!'}
+                            </span>
                         </div>
 
                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div className="text-sm">
-                                <div className="font-medium">{progress?.local_filename}</div>
-                                <div className="text-green-700">
-                                    {formatFileSize(progress?.downloaded_mb || 0)}
+                                <div className="font-medium">
+                                    {actionType === 'download' ? progress?.local_filename : localFilename}
                                 </div>
+                                <div className="text-green-700">
+                                    {formatFileSize(
+                                        actionType === 'download' ?
+                                            (progress?.downloaded_mb || 0) :
+                                            (progress?.uploaded_mb || 0)
+                                    )}
+                                </div>
+                                {actionType === 'transfer' && targetServerId && (
+                                    <div className="mt-2 text-xs text-green-600">
+                                        Transferred to: {servers.find(s => s.id === targetServerId)?.name}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        <Button onClick={downloadFile} className="w-full">
-                            <Download className="h-4 w-4 mr-2" />
-                            Download to Browser
-                        </Button>
+                        {actionType === 'download' && (
+                            <Button onClick={downloadFile} className="w-full">
+                                <Download className="h-4 w-4 mr-2" />
+                                Download to Browser
+                            </Button>
+                        )}
                     </div>
                 )}
 
@@ -383,21 +512,50 @@ const FileDownloadManager = ({ server }) => {
                         </Button>
                     )}
 
+                    {showServerSelector && (
+                        <Button variant="outline" onClick={() => setShowServerSelector(false)}>
+                            Back to Form
+                        </Button>
+                    )}
+
                     {showForm && (
                         <>
                             <Button variant="outline" onClick={handleClose}>
                                 Cancel
                             </Button>
-                            <Button onClick={startDownload} disabled={!isFormValid}>
-                                <Download className="h-4 w-4 mr-2" />
-                                Start Download
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={startDownload}
+                                    disabled={!isFormValid}
+                                    variant="outline"
+                                >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Download
+                                </Button>
+                                <Button
+                                    onClick={() => setShowServerSelector(true)}
+                                    disabled={!isFormValid}
+                                >
+                                    <Upload className="h-4 w-4 mr-2" />
+                                    Transfer to Server
+                                </Button>
+                            </div>
                         </>
+                    )}
+
+                    {showServerSelector && (
+                        <Button
+                            onClick={startTransfer}
+                            disabled={!isTransferFormValid}
+                        >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Start Transfer
+                        </Button>
                     )}
 
                     {(showProgress || showSuccess || showError) && (
                         <Button variant="outline" onClick={handleClose}>
-                            {showProgress ? 'Close (Download Continues)' : 'Close'}
+                            {showProgress ? 'Close (Operation Continues)' : 'Close'}
                         </Button>
                     )}
                 </DialogFooter>

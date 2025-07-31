@@ -14,7 +14,7 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function ServerPage({server}) {
+export default function ServerPage({server,servers}) {
 
     useEffect(() => {
         const channel = window.Echo.channel('server-details')
@@ -37,7 +37,7 @@ export default function ServerPage({server}) {
             <div className="flex h-full flex-1 flex-col gap-4 rounded-xl p-4">
                 {/*<ServersIndex servers={servers} />*/}
                 {/*<div>{server.name}</div>*/}
-                <ServerDetails server={server} />
+                <ServerDetails server={server} servers={servers}/>
             </div>
         </AppLayout>
     );

@@ -72,4 +72,14 @@ class Server extends Model
     {
         return $this->hasMany(DownloadProgress::class)->failed();
     }
+
+    public function uploadProgress()
+    {
+        return $this->hasMany(UploadProgress::class);
+    }
+
+// If you don't already have the download relationship, add this too:
+    /**
+     * Get all download progress records for this server
+     */
 }

@@ -7,6 +7,7 @@ use App\Http\Controllers\ServerController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\TestController;
+use App\Http\Controllers\UploadController;
 use App\Models\Server;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Route;
@@ -39,7 +40,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 Route::resource('servers', ServerController::class);
 Route::get('/servers/{server}/fetch',[ServerController::class,'fetch'])->name('servers.fetch');
-Route::post('/servers/{server}/execute',[ServerController::class,'execute'])->name('servers.execute');
+//Route::post('/servers/{server}/execute',[ServerController::class,'execute'])->name('servers.execute');
 // Terminal routes
 Route::middleware(['auth'])->group(function () {
     Route::post('/servers/{server}/terminal/connect', [TerminalController::class, 'connect'])->name('servers.terminal.connect');
@@ -206,6 +207,56 @@ Route::prefix('downloads')->group(function () {
 
     Route::get('/servers/{server}/browse', [DownloadController::class, 'browseFiles'])
         ->name('server.browse.files');
+});
+
+Route::prefix('uploads')->group(function () {
+    // Start an upload
+    Route::post('/servers/{server}/upload', [UploadController::class, 'uploadFile'])
+        ->name('server.upload');
+
+    // Upload multiple files
+    Route::post('/servers/{server}/upload-multiple', [UploadController::class, 'uploadMultipleFiles'])
+        ->name('server.upload.multiple');
+
+    // Get progress by progress key
+    Route::get('/progress/{key}', [UploadController::class, 'getUploadProgress'])
+        ->name('upload.progress');
+
+    // Get progress by ID
+    Route::get('/progress/id/{id}', [UploadController::class, 'getUploadProgressById'])
+        ->name('upload.progress.by.id');
+
+    // List all uploads for a server
+    Route::get('/servers/{server}', [UploadController::class, 'listServerUploads'])
+        ->name('server.uploads.list');
+
+    // Cancel an upload
+    Route::post('/cancel/{key}', [UploadController::class, 'cancelUpload'])
+        ->name('upload.cancel');
+
+    // Delete an upload record
+    Route::delete('/{key}', [UploadController::class, 'deleteUpload'])
+        ->name('upload.delete');
+
+    // Retry a failed upload
+    Route::post('/retry/{key}', [UploadController::class, 'retryUpload'])
+        ->name('upload.retry');
+
+    // Get upload statistics for a server
+    Route::get('/servers/{server}/stats', [UploadController::class, 'getUploadStats'])
+        ->name('server.upload.stats');
+
+    // Clean up completed uploads older than X days
+    Route::post('/cleanup', [UploadController::class, 'cleanupOldUploads'])
+        ->name('upload.cleanup');
+
+    // Browse remote directory structure
+    Route::get('/servers/{server}/browse-remote', [UploadController::class, 'browseRemoteDirectory'])
+        ->name('server.browse.remote');
+
+    // Validate remote path exists
+    Route::post('/servers/{server}/validate-path', [UploadController::class, 'validateRemotePath'])
+        ->name('server.validate.remote.path');
 });
 
 require __DIR__.'/settings.php';

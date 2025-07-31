@@ -11,15 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('download_progress', function (Blueprint $table) {
+        Schema::create('upload_progress', function (Blueprint $table) {
             $table->id();
             $table->string('progress_key')->unique();
             $table->unsignedBigInteger('server_id');
-            $table->string('remote_path');
-            $table->string('local_filename');
-            $table->decimal('downloaded_mb', 10, 2)->default(0);
+            $table->string('local_path'); // Path to the local file being uploaded
+            $table->string('remote_path'); // Destination path on the remote server
+            $table->string('original_filename'); // Original filename of the uploaded file
+            $table->decimal('uploaded_mb', 10, 2)->default(0);
             $table->decimal('total_size_mb', 10, 2)->nullable();
-            $table->enum('status', ['pending', 'downloading', 'complete', 'failed'])->default('pending');
+            $table->enum('status', ['pending', 'uploading', 'complete', 'failed'])->default('pending');
             $table->text('error_message')->nullable();
             $table->timestamp('started_at')->nullable();
             $table->timestamp('completed_at')->nullable();
@@ -28,6 +29,8 @@ return new class extends Migration
             $table->foreign('server_id')->references('id')->on('servers')->onDelete('cascade');
             $table->index(['server_id', 'status']);
             $table->index('progress_key');
+            $table->index('status');
+            $table->index('created_at');
         });
     }
 
@@ -36,6 +39,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('download_progress');
+        Schema::dropIfExists('upload_progress');
     }
 };

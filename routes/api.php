@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ServerController;
 use App\Models\Server;
 use App\Services\ServerMetricsService;
 use Illuminate\Http\Request;
@@ -26,3 +27,9 @@ Route::get('/servers/{server}/{service_name}/service-details', function (
 
     return $details['details'];
 })->middleware('auth:sanctum');
+
+
+Route::post('/servers/{server}/execute',[ServerController::class,'execute'])
+    ->name('servers.execute')
+->middleware('auth:sanctum');
+

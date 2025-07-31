@@ -57,8 +57,11 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
 
 
         const fullCommand = `cd ${currentDir} && ${command}`;
+        
+        axios.post(`/api/servers/${server.id}/execute`,
+            { command: fullCommand, sudoEnabled: sudo },
 
-        axios.post(`/servers/${server.id}/execute`, { command: fullCommand, sudoEnabled: sudo })
+        )
             .then(response => {
                 const formattedOutput = ansiConverter.toHtml(response.data.output);
                 setOutput(prev => [...prev, formattedOutput]);
@@ -71,8 +74,6 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
                 setInput('');
                 setTimeout(() => inputRef.current?.focus(), 0);
             });
-
-
 
     };
 

@@ -38,8 +38,8 @@ import EditServerDialog from "@/features/servers/index/EditServerDialog.jsx";
 import {DeleteServerDialog} from "@/features/servers/index/DeleteServerDialog.jsx";
 import FileDownloadManager from "@/features/applications/show/FileDownloadManager.jsx";
 
-export function ServerDetails({server}) {
-    // console.log(server)
+export function ServerDetails({server,servers}) {
+    // console.log(servers)
     const [showMetrics, setShowMetrics] = useState(false);
     const lastPingTime = formatDistanceToNow(new Date(server.last_ping_at), {
         addSuffix: true,
@@ -175,7 +175,7 @@ export function ServerDetails({server}) {
                 {server.status === 'Online' &&
                     <div className="flex gap-2">
                         <ServerTerminal server={server}/>
-                        <FileDownloadManager server={server} />
+                        <FileDownloadManager server={server} servers={servers} />
                     </div>
                 }
 

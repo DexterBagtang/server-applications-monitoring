@@ -67,6 +67,7 @@ class ServerController extends Controller
         $server = $this->serverService->getServerWithRelations($server);
         return inertia('servers/show',[
             'server' => $server,
+            'servers' => Server::all(),
         ]);
     }
 

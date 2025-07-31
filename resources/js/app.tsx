@@ -16,8 +16,8 @@ configureEcho({
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
-axios.defaults.withCredentials = true;
-axios.defaults.withXsSRFToken = true;
+// axios.defaults.withCredentials = true;
+// axios.defaults.withXSRFToken = true;
 
 const queryClient = new QueryClient();
 
@@ -28,9 +28,9 @@ createInertiaApp({
         const root = createRoot(el);
 
         root.render(
-            <QueryClientProvider client={queryClient}>
+            // <QueryClientProvider client={queryClient}>
                 <App {...props} />
-            </QueryClientProvider>
+            // </QueryClientProvider>
         );
     },
     progress: {
