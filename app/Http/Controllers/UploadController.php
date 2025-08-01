@@ -48,6 +48,7 @@ class UploadController extends Controller
      */
     public function uploadFile(Server $server, Request $request): JsonResponse
     {
+//        dd($request->all());
         $validator = Validator::make($request->all(), [
 //            'file' => 'required|file|max:2048000', // 2GB max
             'remote_path' => 'required|string',
@@ -61,7 +62,7 @@ class UploadController extends Controller
             ], 422);
         }
 
-        $file = $request->file('file');
+        $file = $request->input('file');
         $remotePath = $request->input('remote_path');
         $overwrite = $request->boolean('overwrite', false);
 
@@ -69,19 +70,20 @@ class UploadController extends Controller
         $progressKey = 'upload_' . $server->id . '_' . Str::random(8);
 
         // Store file temporarily
-        $localPath = $file->store('temp-uploads');
-        $fileSizeMb = round($file->getSize() / 1024 / 1024, 2);
+        $localPath = storage_path("app/".$file['name']);
+
+        $fileSizeMb = round(filesize($localPath) / 1024 / 1024, 2);
 
         // Ensure remote path includes filename
-        $remoteFilePath = rtrim($remotePath, '/') . '/' . $file->getClientOriginalName();
+        $remoteFilePath = rtrim($remotePath, '/') . '/' . $file['name'];
 
         // Create upload progress record
         $uploadProgress = UploadProgress::create([
             'progress_key' => $progressKey,
             'server_id' => $server->id,
-            'local_path' => $localPath,
+            'local_path' => $file['name'],
             'remote_path' => $remoteFilePath,
-            'original_filename' => $file->getClientOriginalName(),
+            'original_filename' => $file['name'],
             'total_size_mb' => $fileSizeMb,
             'status' => 'pending',
         ]);

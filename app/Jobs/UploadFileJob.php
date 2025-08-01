@@ -126,8 +126,11 @@ class UploadFileJob implements ShouldQueue
             ]);
 
             // Clean up temporary local file
-            if (Storage::exists($this->uploadProgress->local_path)) {
-                Storage::delete($this->uploadProgress->local_path);
+            $relativePath = $this->uploadProgress->local_path;
+            $absolutePath = storage_path('app/' . $relativePath);
+
+            if (file_exists($absolutePath)) {
+                unlink($absolutePath);
             }
 
         } catch (\Exception $e) {

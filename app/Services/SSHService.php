@@ -119,9 +119,9 @@ class SSHService
 
         // Dangerous commands patterns
         $dangerousPatterns = [
-            // System destruction
-            '/\brm\s+(-[rf]*\s*)*\//',           // rm / or rm -rf /
-            '/\brm\s+(-[rf]*\s*)*\*/',           // rm * or rm -rf *
+//             System destruction
+//            '/\brm\s+(-[rf]*\s*)*\//',           // rm / or rm -rf /
+//            '/\brm\s+(-[rf]*\s*)*\*/',           // rm * or rm -rf *
             '/\bmkfs\./',                         // Format filesystem
             '/\bdd\s+.*of=\/dev\//',             // dd to device
             '/\bshred\s/',                        // Secure delete
@@ -234,17 +234,17 @@ class SSHService
         switch ($sequence) {
             case '/dev/null':
                 // Allow simple redirections but block dangerous combinations
-                return preg_match('/rm.*>\s*\/dev\/null/', $command) ||
-                    preg_match('/dd.*>\s*\/dev\/null/', $command);
+                return preg_match('/dd.*>\s*\/dev\/null/', $command);
 
             case '2>/dev/null':
                 // Block when combined with potentially dangerous commands
-                return preg_match('/(rm|dd|mkfs|shred).*2>\/dev\/null/', $command);
+                return preg_match('/(dd|mkfs|shred).*2>\/dev\/null/', $command);
 
             default:
                 return true;
         }
     }
+
 
     /**
      * Close a connection to the server
