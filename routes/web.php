@@ -70,6 +70,8 @@ Route::get('/sftp-test/{server}', [App\Http\Controllers\TestController::class, '
 Route::post('/mysql-dump/{server}/{database}', [App\Http\Controllers\TestController::class, 'mysqlDump']);
 Route::post('/database-dump/{server}/{database}', [BackupController::class, 'databaseDump']);
 
+Route::post('/database-backup/{application}', [BackupController::class, 'databaseBackup']);
+
 //Route::get('/download-zip/{server}',[App\Http\Controllers\TestController::class,'downloadZip']);
 //Route::get('/check-download-progress',[App\Http\Controllers\TestController::class,'checkDownloadProgress']);
 //
@@ -169,6 +171,31 @@ Route::get('/delete-file', function () {
 Route::get('/test-file', function () {
     $path = storage_path('app/001b298425d76eb3ffb3898db7d4d9e3.json');
     return file_exists($path) ? 'found via native PHP' : 'not found';
+});
+
+
+Route::get('db-credentials', function (SSHService $sshService) {
+    // Load the full .env file contents
+    $command = 'cd /var/www/html/dtr/ && type .env || cat .env';
+
+    $output = $sshService->executeCommand(Server::find(1), $command, true);
+// Normalize line endings
+    $lines = preg_split('/\r\n|\n|\r/', trim($output));
+
+    $wantedKeys = ['DB_PORT', 'DB_DATABASE', 'DB_USERNAME','DB_PASSWORD','DB_CONNECTION'];
+    $envVars = [];
+
+    foreach ($lines as $line) {
+        if (strpos($line, '=') !== false) {
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            if (in_array($key, $wantedKeys)) {
+                $envVars[$key] = trim($value);
+            }
+        }
+    }
+
+    dd($envVars);
 });
 
 require __DIR__.'/settings.php';

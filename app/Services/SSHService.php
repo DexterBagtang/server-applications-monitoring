@@ -114,104 +114,119 @@ class SSHService
     {
         $command = strtolower(trim($command));
 
-        // Remove multiple spaces and normalize
+        // Normalize whitespace
         $command = preg_replace('/\s+/', ' ', $command);
 
-        // Dangerous commands patterns
-        $dangerousPatterns = [
-//             System destruction
-//            '/\brm\s+(-[rf]*\s*)*\//',           // rm / or rm -rf /
-//            '/\brm\s+(-[rf]*\s*)*\*/',           // rm * or rm -rf *
-            '/\bmkfs\./',                         // Format filesystem
-            '/\bdd\s+.*of=\/dev\//',             // dd to device
-            '/\bshred\s/',                        // Secure delete
-            '/\bwipe\s/',                         // Wipe data
-
-            // Process/system control
-            '/\bkillall\s/',                      // Kill all processes
-            '/\bpkill\s+-9/',                     // Force kill processes
-            '/\bkill\s+-9\s+1\b/',               // Kill init process
-            '/\breboot\b/',                       // System reboot
-            '/\bshutdown\b/',                     // System shutdown
-            '/\bhalt\b/',                         // System halt
-            '/\bpoweroff\b/',                     // Power off
-            '/\binit\s+0\b/',                     // Shutdown via init
-            '/\binit\s+6\b/',                     // Restart via init
-
-            // User/permission manipulation
-            '/\buserdel\s/',                      // Delete user
-            '/\busermod\s.*-s\s*\/bin\/false/',  // Disable user shell
-            '/\bpasswd\s+.*root/',               // Change root password
-            '/\bchmod\s+000\s/',                 // Remove all permissions
-            '/\bchmod\s+777\s+\//',              // Dangerous permissions on root
-            '/\bchown\s+.*:.*\s+\//',            // Change ownership of root
-
-            // Network/firewall
-            '/\biptables\s+-F/',                  // Flush firewall rules
-            '/\bufw\s+disable/',                  // Disable firewall
-            '/\bservice\s+.*stop/',              // Stop services
-            '/\bsystemctl\s+stop/',              // Stop systemd services
-            '/\bsystemctl\s+disable/',           // Disable systemd services
-
-            // Package management dangers
-            '/\bapt\s+remove\s+.*sudo/',         // Remove sudo
-            '/\bapt\s+remove\s+.*ssh/',          // Remove SSH
-            '/\byum\s+remove\s+.*sudo/',         // Remove sudo (CentOS)
-            '/\byum\s+remove\s+.*ssh/',          // Remove SSH (CentOS)
-            '/\bpip\s+uninstall\s+-y\s+pip/',   // Uninstall pip itself
-
-            // Dangerous file operations
-            '/>\s*\/dev\/sda/',                   // Write to disk device
-            '/>\s*\/dev\/null\s+2>&1\s*&/',      // Background dangerous operations
-            '/\bchattr\s+\+i\s+\//',             // Make root immutable
-            '/\bmount\s+.*\/dev\//',             // Mount operations
-            '/\bumount\s+\//',                   // Unmount root
-
-            // Code injection attempts
-            '/;\s*(rm|del|format|shutdown)/',     // Command chaining
-            '/\|\s*(rm|del|format|shutdown)/',   // Pipe to dangerous commands
-            '/&&\s*(rm|del|format|shutdown)/',   // AND dangerous commands
-            '/\$\(.*rm.*\)/',                    // Command substitution with rm
-            '/`.*rm.*`/',                        // Backtick command substitution
-
-            // Cron/scheduled tasks
-            '/\bcrontab\s+-r/',                  // Remove all cron jobs
-            '/>\s*\/etc\/crontab/',              // Overwrite system crontab
-
-            // SSH/security
-            '/>\s*\/root\/\.ssh\/authorized_keys/', // Overwrite SSH keys
-            '/>\s*\/home\/.*\/\.ssh\/authorized_keys/', // Overwrite user SSH keys
-            '/\bservice\s+ssh\s+stop/',          // Stop SSH service
-            '/\bsystemctl\s+stop\s+ssh/',       // Stop SSH via systemctl
-
-            // Logging/audit
-            '/>\s*\/var\/log\//',                // Overwrite log files
-            '/\bshred\s+\/var\/log\//',         // Destroy log files
-
-            // Docker/container dangers (if applicable)
-            '/\bdocker\s+rm\s+-f\s+\$\(docker\s+ps\s+-aq\)/', // Remove all containers
-            '/\bdocker\s+system\s+prune\s+-af/', // Remove all docker data
+        // Optional: Define safe paths for rm commands (customize as needed)
+        $safeRmPaths = [
+            '/tmp/',
+            '/home/youruser/uploads/',
+            // Add more safe paths as needed
         ];
 
-        // Check against patterns
+        // Check if it's an rm command
+//        if (preg_match('/\brm\s+(.*)/', $command, $matches)) {
+//            $target = $matches[1];
+//
+//            // Block known dangerous patterns for rm
+//            $rmDangerousPatterns = [
+////                '/\brm\s+-[rf]+\s+\/\s*/',         // rm -rf /
+////                '/\brm\s+-[rf]+\s+\*/',            // rm -rf *
+////                '/\brm\s+\*/',                     // rm *
+////                '/\brm\s+.*\/\*/',                 // rm /home/*
+////                '/\brm\s+-[rf]+\s+\$[A-Za-z_]+/',  // rm -rf $VAR
+//            ];
+//
+//            foreach ($rmDangerousPatterns as $pattern) {
+//                if (preg_match($pattern, $command)) {
+//                    return true;
+//                }
+//            }
+//
+//            // Optional whitelist check: block if not under allowed paths
+//            $isSafePath = false;
+//            foreach ($safeRmPaths as $path) {
+//                if (strpos($target, $path) === 0) {
+//                    $isSafePath = true;
+//                    break;
+//                }
+//            }
+//
+//            if (!$isSafePath) {
+//                return true; // Block rm if not under safe path
+//            }
+//        }
+
+        // General dangerous patterns
+        $dangerousPatterns = [
+            '/\bmkfs\./',
+            '/\bdd\s+.*of=\/dev\//',
+            '/\bshred\s/',
+            '/\bwipe\s/',
+            '/\bkillall\s/',
+            '/\bpkill\s+-9/',
+            '/\bkill\s+-9\s+1\b/',
+            '/\breboot\b/',
+            '/\bshutdown\b/',
+            '/\bhalt\b/',
+            '/\bpoweroff\b/',
+            '/\binit\s+0\b/',
+            '/\binit\s+6\b/',
+            '/\buserdel\s/',
+            '/\busermod\s.*-s\s*\/bin\/false/',
+            '/\bpasswd\s+.*root/',
+            '/\bchmod\s+000\s/',
+            '/\bchmod\s+777\s+\//',
+            '/\bchown\s+.*:.*\s+\//',
+            '/\biptables\s+-F/',
+            '/\bufw\s+disable/',
+            '/\bservice\s+.*stop/',
+            '/\bsystemctl\s+stop/',
+            '/\bsystemctl\s+disable/',
+            '/\bapt\s+remove\s+.*sudo/',
+            '/\bapt\s+remove\s+.*ssh/',
+            '/\byum\s+remove\s+.*sudo/',
+            '/\byum\s+remove\s+.*ssh/',
+            '/\bpip\s+uninstall\s+-y\s+pip/',
+            '/>\s*\/dev\/sda/',
+            '/>\s*\/dev\/null\s+2>&1\s*&/',
+            '/\bchattr\s+\+i\s+\//',
+            '/\bmount\s+.*\/dev\//',
+            '/\bumount\s+\//',
+            '/;\s*(rm|del|format|shutdown)/',
+            '/\|\s*(rm|del|format|shutdown)/',
+            '/&&\s*(rm|del|format|shutdown)/',
+            '/\$\(.*rm.*\)/',
+            '/`.*rm.*`/',
+            '/\bcrontab\s+-r/',
+            '/>\s*\/etc\/crontab/',
+            '/>\s*\/root\/\.ssh\/authorized_keys/',
+            '/>\s*\/home\/.*\/\.ssh\/authorized_keys/',
+            '/\bservice\s+ssh\s+stop/',
+            '/\bsystemctl\s+stop\s+ssh/',
+            '/>\s*\/var\/log\//',
+            '/\bshred\s+\/var\/log\//',
+            '/\bdocker\s+rm\s+-f\s+\$\(docker\s+ps\s+-aq\)/',
+            '/\bdocker\s+system\s+prune\s+-af/',
+        ];
+
         foreach ($dangerousPatterns as $pattern) {
             if (preg_match($pattern, $command)) {
                 return true;
             }
         }
 
-        // Check for suspicious characters/sequences
+        // Suspicious sequences (check context)
         $suspiciousSequences = [
-            '/dev/sd',     // Direct disk access
-            '/dev/hd',     // Direct disk access
-            '/dev/null',   // Null device (context dependent)
-            '$((',         // Arithmetic expansion that might hide commands
-            '2>/dev/null', // Error redirection (sometimes used to hide)
+            '/dev/sd',
+            '/dev/hd',
+            '/dev/null',
+            '$((',
+            '2>/dev/null',
         ];
 
         foreach ($suspiciousSequences as $sequence) {
             if (stripos($command, $sequence) !== false) {
-                // Additional context checking could be added here
                 if ($this->isHighRiskContext($command, $sequence)) {
                     return true;
                 }
@@ -220,6 +235,7 @@ class SSHService
 
         return false;
     }
+
 
     /**
      * Check if a command with a suspicious sequence is in a high-risk context

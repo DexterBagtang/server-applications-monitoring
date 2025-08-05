@@ -143,9 +143,12 @@ class UploadFileJob implements ShouldQueue
 
             $this->uploadProgress->markAsFailed($e->getMessage());
 
-            // Clean up temporary local file on failure
-            if (Storage::exists($this->uploadProgress->local_path)) {
-                Storage::delete($this->uploadProgress->local_path);
+            // Clean up temporary local file
+            $relativePath = $this->uploadProgress->local_path;
+            $absolutePath = storage_path('app/' . $relativePath);
+
+            if (file_exists($absolutePath)) {
+                unlink($absolutePath);
             }
 
             throw $e; // Re-throw to mark job as failed
@@ -168,8 +171,11 @@ class UploadFileJob implements ShouldQueue
         $this->uploadProgress->markAsFailed($exception->getMessage());
 
         // Clean up temporary local file
-        if (Storage::exists($this->uploadProgress->local_path)) {
-            Storage::delete($this->uploadProgress->local_path);
+        $relativePath = $this->uploadProgress->local_path;
+        $absolutePath = storage_path('app/' . $relativePath);
+
+        if (file_exists($absolutePath)) {
+            unlink($absolutePath);
         }
     }
 

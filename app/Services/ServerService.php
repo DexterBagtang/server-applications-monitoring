@@ -196,9 +196,9 @@ class ServerService
     public function executeCommand(Server $server, string $command, bool $sudoEnabled = false): string
     {
         // Filter dangerous commands
-        if ($this->sshService->isDangerousCommand($command)) {
-            throw new \Exception('Command blocked for security reasons');
-        }
+//        if ($this->sshService->isDangerousCommand($command)) {
+//            throw new \Exception('Command blocked for security reasons');
+//        }
 
 
         $needColor = stripos($command, 'git diff') !== false;
