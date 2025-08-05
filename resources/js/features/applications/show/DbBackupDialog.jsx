@@ -155,12 +155,45 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
         };
     }, []);
 
+
+    const [isDbCredLoading, setIsDbCredLoading] = useState(false);
+
+    useEffect(() => {
+        if (open) {
+            setIsDbCredLoading(true); // <-- show loading state
+            axios.get(`/api/db-credentials/${application.id}`)
+                .then(res => {
+                    const data = res.data;
+                    setCredentials(prev => ({
+                        ...prev,
+                        db_name: data.DB_DATABASE || prev.db_name,
+                        db_username: data.DB_USERNAME || prev.db_username,
+                        db_password: data.DB_PASSWORD || prev.db_password,
+                    }));
+                })
+                .catch(err => {
+                    console.warn("Could not auto-fill DB credentials:", err);
+                    // silently fail; let user input manually
+                })
+                .finally(() => {
+                    setIsDbCredLoading(false);
+                });
+        }
+    }, [open]);
+
+
     return (
         <Dialog open={open} onOpenChange={handleDialogClose}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Database Backup</DialogTitle>
                     <DialogDescription>
+                        {isDbCredLoading && (
+                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Fetching database credentials...</span>
+                            </div>
+                        )}
                         Download a backup of your database. Please provide the required database credentials.
                     </DialogDescription>
                 </DialogHeader>
@@ -221,6 +254,7 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
                                 className="col-span-3"
                                 placeholder="Enter database name"
                                 required
+                                disabled={isDbCredLoading}
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
@@ -234,6 +268,8 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
                                 onChange={handleInputChange}
                                 className="col-span-3"
                                 placeholder="Enter database username"
+                                disabled={isDbCredLoading}
+
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
@@ -248,6 +284,8 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
                                 onChange={handleInputChange}
                                 className="col-span-3"
                                 placeholder="Enter database password"
+                                disabled={isDbCredLoading}
+
                             />
                         </div>
                     </div>
@@ -266,7 +304,7 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
                     ) : (
                         <Button
                             onClick={handleStartBackup}
-                            disabled={loading || !isFormValid}
+                            disabled={loading || !isFormValid || isDbCredLoading}
                         >
                             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Start Backup

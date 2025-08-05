@@ -174,29 +174,29 @@ Route::get('/test-file', function () {
 });
 
 
-Route::get('db-credentials', function (SSHService $sshService) {
-    // Load the full .env file contents
-    $command = 'cd /var/www/html/dtr/ && type .env || cat .env';
-
-    $output = $sshService->executeCommand(Server::find(1), $command, true);
-// Normalize line endings
-    $lines = preg_split('/\r\n|\n|\r/', trim($output));
-
-    $wantedKeys = ['DB_PORT', 'DB_DATABASE', 'DB_USERNAME','DB_PASSWORD','DB_CONNECTION'];
-    $envVars = [];
-
-    foreach ($lines as $line) {
-        if (strpos($line, '=') !== false) {
-            [$key, $value] = explode('=', $line, 2);
-            $key = trim($key);
-            if (in_array($key, $wantedKeys)) {
-                $envVars[$key] = trim($value);
-            }
-        }
-    }
-
-    dd($envVars);
-});
+//Route::get('db-credentials', function (SSHService $sshService) {
+//    // Load the full .env file contents
+//    $command = 'cd /var/www/html/dtr/ && type .env || cat .env';
+//
+//    $output = $sshService->executeCommand(Server::find(1), $command, true);
+//// Normalize line endings
+//    $lines = preg_split('/\r\n|\n|\r/', trim($output));
+//
+//    $wantedKeys = ['DB_PORT', 'DB_DATABASE', 'DB_USERNAME','DB_PASSWORD','DB_CONNECTION'];
+//    $envVars = [];
+//
+//    foreach ($lines as $line) {
+//        if (strpos($line, '=') !== false) {
+//            [$key, $value] = explode('=', $line, 2);
+//            $key = trim($key);
+//            if (in_array($key, $wantedKeys)) {
+//                $envVars[$key] = trim($value);
+//            }
+//        }
+//    }
+//
+//    dd($envVars);
+//});
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
