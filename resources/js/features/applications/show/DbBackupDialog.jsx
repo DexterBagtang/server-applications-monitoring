@@ -16,6 +16,8 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
         db_name: application?.database_name || "",
         db_username: "",
         db_password: "",
+        db_type: "",
+        db_port: "",
     });
     const [progressData, setProgressData] = useState(null);
     const [isCompleted, setIsCompleted] = useState(false);
@@ -109,7 +111,8 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
                 db_type: application?.database_type || "mysql",
                 ...(credentials.db_username && { db_username: credentials.db_username }),
                 ...(credentials.db_password && { db_password: credentials.db_password }),
-                ...(credentials.db_name && { db_name: credentials.db_name })
+                ...(credentials.db_name && { db_name: credentials.db_name }),
+                ...(credentials.db_port && { db_port: credentials.db_port })
             };
 
             const response = await axios.post(url, requestData);
@@ -169,6 +172,8 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
                         db_name: data.DB_DATABASE || prev.db_name,
                         db_username: data.DB_USERNAME || prev.db_username,
                         db_password: data.DB_PASSWORD || prev.db_password,
+                        db_type: data.DB_CONNECTION || prev.db_password,
+                        db_port: data.DB_PORT || prev.db_password,
                     }));
                 })
                 .catch(err => {
@@ -242,6 +247,7 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
                 {/* Credentials Form */}
                 {showCredentialsForm && (
                     <div className="grid gap-4 py-4">
+
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="db_name" className="text-right">
                                 Database *
@@ -286,6 +292,21 @@ export function DbBackupDialog({ open, setOpen, server, application }) {
                                 placeholder="Enter database password"
                                 disabled={isDbCredLoading}
 
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="db_username" className="text-right">
+                                Port
+                            </Label>
+                            <Input
+                                id="db_port"
+                                name="db_port"
+                                value={credentials.db_port}
+                                onChange={handleInputChange}
+                                className="col-span-3"
+                                placeholder="Enter database port"
+                                disabled={isDbCredLoading}
                             />
                         </div>
                     </div>

@@ -33,6 +33,7 @@ import {router} from "@inertiajs/react";
 import {LogApplicationDialog} from "@/features/applications/show/LogApplicationDialog.jsx";
 import {DbBackupDialog} from "@/features/applications/show/DbBackupDialog.jsx";
 import FileDownloadManager from "@/features/applications/show/FileDownloadManager.jsx";
+import {EnvDialog} from "@/features/applications/show/EnvDialog.jsx";
 
 export default function ApplicationsCard({applications = [], server}) {
     // const [openOption, setOpenOption] = useState(false)
@@ -43,6 +44,7 @@ export default function ApplicationsCard({applications = [], server}) {
     const [logResult, setLogResult] = useState('');
     const [loading, setLoading] = useState(false);
     const [dbBackupDialog, setDbBackupDialog] = useState(false);
+    const [envDialog, setEnvDialog] = useState(false);
 
     const logFormatter = Intl.NumberFormat('en',{
         notation:'compact',
@@ -96,6 +98,11 @@ export default function ApplicationsCard({applications = [], server}) {
     function handleDbBackup(application) {
         setSelectedApp(application);
         setDbBackupDialog(true);
+    }
+
+    function handleEnvDialog(application){
+        setSelectedApp(application);
+        setEnvDialog(true);
     }
 
     return (
@@ -274,7 +281,12 @@ export default function ApplicationsCard({applications = [], server}) {
                                                         directory={application.path}
                                                         label="Console"
                                                     />
-                                                    <Button variant="outline" size="sm" className="h-8">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-8"
+                                                        onClick={()=> handleEnvDialog(application)}
+                                                    >
                                                         <Settings className="h-3 w-3 mr-2"/> Env Vars
                                                     </Button>
                                                     <Button
@@ -323,6 +335,7 @@ export default function ApplicationsCard({applications = [], server}) {
                     <DeleteApplicationDialog application={selectedApp} open={deleteDialog} setOpen={setDeleteDialog} />
                     <LogApplicationDialog logsData={logResult} open={logDialog} setOpen={setLogDialog} isFetching={loading} />
                     <DbBackupDialog server={server} application={selectedApp} open={dbBackupDialog} setOpen={setDbBackupDialog} />
+                    <EnvDialog application={selectedApp} open={envDialog} setOpen={setEnvDialog} />
                 </div>
             )}
         </div>

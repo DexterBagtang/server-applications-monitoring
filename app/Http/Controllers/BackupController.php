@@ -33,6 +33,7 @@ class BackupController extends Controller
         try {
             $dbUsername = null;
             $dbPassword = null;
+            $dbPort = null;
             $dbType = $request->input('db_type', 'mysql'); // Default to mysql if not specified
 
             if ($request && $request->has('db_username') && $request->has('db_password')) {
@@ -43,18 +44,30 @@ class BackupController extends Controller
                 }
             }
 
+            // Handle custom port
+            if ($request && $request->has('db_port')) {
+                $dbPort = $request->input('db_port');
+                // Validate port number
+                if (!is_numeric($dbPort) || $dbPort < 1 || $dbPort > 65535) {
+                    return response()->json(['error' => 'Invalid port number'], 400);
+                }
+            }
+
             $escapedDb = escapeshellarg($database);
             $escapedUsername = escapeshellarg($dbUsername);
             $escapedPath = escapeshellarg($dumpPath);
 
             if ($dbType === 'postgresql') {
                 // PostgreSQL dump command
-                $passwordEnv = $dbPassword ? "PGPASSWORD=" . $dbPassword . " " : "";
-                $dumpCommand = "{$passwordEnv}pg_dump -U {$escapedUsername} -d {$escapedDb} -f {$escapedPath} 2>&1";
+                $passwordEnv = $dbPassword ? "PGPASSWORD=" . escapeshellarg($dbPassword) . " " : "";
+                $portPart = $dbPort ? "-p " . escapeshellarg($dbPort) : "-p 5432"; // Default PostgreSQL port
+                $hostPart = "-h localhost"; // You might want to make this configurable too
+                $dumpCommand = "{$passwordEnv}pg_dump {$hostPart} {$portPart} -U {$escapedUsername} -d {$escapedDb} -f {$escapedPath} 2>&1";
             } else {
                 // MySQL dump command (default)
-                $passwordPart = $dbPassword ? "-p" . $dbPassword : "";
-                $dumpCommand = "mysqldump -u {$escapedUsername} {$passwordPart} {$escapedDb} > {$escapedPath} 2>&1";
+                $passwordPart = $dbPassword ? "-p" . escapeshellarg($dbPassword) : "";
+                $portPart = $dbPort ? "-P " . escapeshellarg($dbPort) : "-P 3306"; // Default MySQL port
+                $dumpCommand = "mysqldump -u {$escapedUsername} {$passwordPart} {$portPart} {$escapedDb} > {$escapedPath} 2>&1";
             }
 
             $this->sshService->executeCommand($server, $dumpCommand, true);

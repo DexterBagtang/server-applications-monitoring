@@ -21,8 +21,8 @@ Route::get('/servers/{server}/connection-details', function (Server $server) {
 
 Route::get('/servers/{server}/{service_name}/service-details', function (
     ServerMetricsService $service,
-    Server $server,
-    string $service_name
+    Server               $server,
+    string               $service_name
 ) {
     $server = $server->load('agentConnection');
     $details = $service->getServiceDetails($server, $service_name);
@@ -31,14 +31,14 @@ Route::get('/servers/{server}/{service_name}/service-details', function (
 })->middleware('auth:sanctum');
 
 
-Route::post('/servers/{server}/execute',[ServerController::class,'execute'])
+Route::post('/servers/{server}/execute', [ServerController::class, 'execute'])
     ->name('servers.execute')
-->middleware('auth:sanctum');
+    ->middleware('auth:sanctum');
 
 
 Route::get('db-credentials/{application}', function (SSHService $sshService, Application $application) {
 
-    $path = $application->path.'/';
+    $path = $application->path . '/';
     // Load the full .env file contents
     $command = "cd $path && type .env || cat .env";
 
@@ -46,7 +46,7 @@ Route::get('db-credentials/{application}', function (SSHService $sshService, App
 // Normalize line endings
     $lines = preg_split('/\r\n|\n|\r/', trim($output));
 
-    $wantedKeys = ['DB_PORT', 'DB_DATABASE', 'DB_USERNAME','DB_PASSWORD','DB_CONNECTION'];
+    $wantedKeys = ['DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'DB_CONNECTION'];
     $envVars = [];
 
     foreach ($lines as $line) {
@@ -54,10 +54,33 @@ Route::get('db-credentials/{application}', function (SSHService $sshService, App
             [$key, $value] = explode('=', $line, 2);
             $key = trim($key);
             if (in_array($key, $wantedKeys)) {
-                $envVars[$key] = trim($value," \"");
+                $envVars[$key] = trim($value, " \"");
             }
         }
     }
     return response()->json($envVars);
 });
+
+Route::get('env-variables/{application}', function (SSHService $sshService, Application $application) {
+
+    $path = $application->path . '/';
+    // Load the full .env file contents
+    $command = "cd $path && type .env || cat .env";
+
+    $output = $sshService->executeCommand(Server::find($application->server_id), $command, true);
+// Normalize line endings
+    $lines = preg_split('/\r\n|\n|\r/', trim($output));
+
+    $envVars = [];
+
+    foreach ($lines as $line) {
+        if (str_contains($line, '=')) {
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            $envVars[$key] = trim($value, " \"");
+        }
+    }
+    return response()->json($envVars);
+});
+
 
