@@ -28,6 +28,11 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
     const [isOpen, setIsOpen] = useState(false);
     const [sudo, setSudo] = useState(false);
 
+    // Command history state
+    const [commandHistory, setCommandHistory] = useState([]);
+    const [historyIndex, setHistoryIndex] = useState(-1);
+    const [tempInput, setTempInput] = useState(''); // Store current input when navigating history
+
     const inputRef = useRef(null);
     const outputEndRef = useRef(null);
     const ansiConverter = new AnsiToHtml();
@@ -37,6 +42,19 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
         if (!input.trim()) return;
 
         const command = input.trim();
+
+        // Add command to history (avoid duplicates of the last command)
+        setCommandHistory(prev => {
+            const newHistory = prev[prev.length - 1] !== command
+                ? [...prev, command]
+                : prev;
+            return newHistory;
+        });
+
+        // Reset history navigation
+        setHistoryIndex(-1);
+        setTempInput('');
+
         setOutput(prev => [...prev, ansiConverter.toHtml(`${sudo ? '🔥 ' : ''}$ ${command}`)]);
         setIsLoading(true);
 
@@ -55,12 +73,10 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
             return;
         }
 
-
         const fullCommand = `cd ${currentDir} && ${command}`;
-        
+
         axios.post(`/api/servers/${server.id}/execute`,
             { command: fullCommand, sudoEnabled: sudo },
-
         )
             .then(response => {
                 const formattedOutput = ansiConverter.toHtml(response.data.output);
@@ -74,7 +90,48 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
                 setInput('');
                 setTimeout(() => inputRef.current?.focus(), 0);
             });
+    };
 
+    const handleKeyDown = (e) => {
+        if (commandHistory.length === 0) return;
+
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+
+            // If we're at the current input (historyIndex === -1), store it as temp
+            if (historyIndex === -1) {
+                setTempInput(input);
+            }
+
+            const newIndex = historyIndex + 1;
+            if (newIndex < commandHistory.length) {
+                setHistoryIndex(newIndex);
+                const historyCommand = commandHistory[commandHistory.length - 1 - newIndex];
+                setInput(historyCommand);
+            }
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+
+            const newIndex = historyIndex - 1;
+            if (newIndex >= 0) {
+                setHistoryIndex(newIndex);
+                const historyCommand = commandHistory[commandHistory.length - 1 - newIndex];
+                setInput(historyCommand);
+            } else if (newIndex === -1) {
+                // Return to current input
+                setHistoryIndex(-1);
+                setInput(tempInput);
+            }
+        }
+    };
+
+    const handleInputChange = (e) => {
+        // If user starts typing while navigating history, reset to current input mode
+        if (historyIndex !== -1) {
+            setHistoryIndex(-1);
+            setTempInput('');
+        }
+        setInput(e.target.value);
     };
 
     function resolvePath(current, inputPath) {
@@ -149,6 +206,7 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
                         <span className="mb-1">{server.ip_address} | Current directory: {currentDir}</span>
                         <span className="text-xs text-blue-500 dark:text-blue-400">
                             Note: This is a simplified terminal for quick commands only.
+                            Use ↑/↓ arrow keys to navigate command history.
                             For complex operations or interactive sessions, please use a full SSH client.
                         </span>
                     </DialogDescription>
@@ -197,7 +255,8 @@ export function ServerTerminal({ server, directory = '~', label = 'Simple Termin
                                 <input
                                     type="text"
                                     value={input}
-                                    onChange={(e) => setInput(e.target.value)}
+                                    onChange={handleInputChange}
+                                    onKeyDown={handleKeyDown}
                                     ref={inputRef}
                                     className={`bg-transparent border-none flex-1 focus:outline-none ${sudo ? "text-red-400" : "text-green-400"}`}
                                     disabled={isLoading}
