@@ -44,6 +44,7 @@ class BackupController extends Controller
                 }
             }
 
+
             // Handle custom port
             if ($request && $request->has('db_port')) {
                 $dbPort = $request->input('db_port');
@@ -65,10 +66,12 @@ class BackupController extends Controller
                 $dumpCommand = "{$passwordEnv}pg_dump {$hostPart} {$portPart} -U {$escapedUsername} -d {$escapedDb} -f {$escapedPath} 2>&1";
             } else {
                 // MySQL dump command (default)
-                $passwordPart = $dbPassword ? "-p" . escapeshellarg($dbPassword) : "";
+                $dbPassword = '"'.$dbPassword.'"';
+                $passwordPart = $dbPassword ? "-p" . $dbPassword : "";
                 $portPart = $dbPort ? "-P " . escapeshellarg($dbPort) : "-P 3306"; // Default MySQL port
                 $dumpCommand = "mysqldump -u {$escapedUsername} {$passwordPart} {$portPart} {$escapedDb} > {$escapedPath} 2>&1";
             }
+
 
             $this->sshService->executeCommand($server, $dumpCommand, true);
 
